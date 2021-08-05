@@ -6,6 +6,7 @@ import { DataGrid } from '@material-ui/data-grid';
 import { withStyles, createMuiTheme } from '@material-ui/core/styles';
 
 import Header from './Header';
+import ImageGrid from './ImageGrid';
 
 const { apikey } = require('./env.json');
 
@@ -64,14 +65,15 @@ class CommentForm extends React.Component {
 
         this.onChange = this.onChange.bind(this);
         this.onSubmit = this.onSubmit.bind(this);
+        this.onClick = this.onClick.bind(this);
     }
+    
+    // hooks
 
     setText = text => {
         console.log(text);
         this.setState({ text });
     };
-    
-    // hooks
 
     onChange(event) { 
         event.preventDefault();     // prevents page from reloading on submit
@@ -80,107 +82,37 @@ class CommentForm extends React.Component {
         this.setState({ text });
     }
 
-    onSubmit(event) { 
+    async onSubmit(event) { 
         event.preventDefault();     // prevents page from reloading on submit
-        search(this.state.text)
-            .then(x => {
-                this.setState({ rows: x });
-            });
+        const rows = await search(this.state.text);
+        const show = {};
+        this.setState({ rows, show });
     }
     
-    handleSelect(imdbID) {
-        getShow(imdbID)
-            .then(x => {
-                this.setState({ show: x });
+    async onClick(imdbID) {
+        const show = await getShow(imdbID);
+        const rows = [];
+        this.setState({ show, rows });
 
-                getAll(
-                    this.state.show.imdbID,
-                    Number(this.state.show.totalSeasons),
-                )
-                    .then(x => {
-                        this.setState({ seasons: x });
-                    });
-            });        
+        const seasons = await getAll(
+            this.state.show.imdbID,
+            Number(this.state.show.totalSeasons),
+        )
+        this.setState({ seasons });     
     }
 
     // components
 
-    ImageGridList() {
-        if (this.state.rows.length) {
-            return (
-                <Grid container justify='left' spacing={2}>
-                    {this.state.rows
-                        .filter(tile => tile.Poster !== 'N/A')
-                        .map((tile) => (
-                            <Grid item onClick={() => this.handleSelect(tile.imdbID)}>
-                                <img src={tile.Poster} alt={tile.Title} width={144} />
-                            </Grid>
-                        )
-                    )}
-                </Grid>
-            );
-        }
-        
-        <Box component="div" display="inline">inline</Box>
-        return this.state.rows
-            .map((tile) => (
-                <Box component="div" display="inline">
-                    <img src={tile.Poster} alt={tile.Title} width={99} />
-                </Box>
-            ));
-    }
-    
-    process() {
-        var seasons = this.state.seasons;
-        if (!seasons.length){
-            return false;
-        }
-    
-        var rows = []
-        var numbers = [];
-        seasons.forEach(season => {
-            var row = {};
-            const episodes = season.Episodes || [];
-            episodes.forEach(episode => {
-                row[episode.Episode] = episode.imdbRating
-            });
-            rows.push(row);
-    
-            numbers.push(
-                Math.max( ...Object.keys(row).map(Number) )
-            );
-        })
-        
-        var max = Math.max( ...numbers );
-        var columns = [{ 
-            field: 'id',
-            headerName: 'Season',
-        }]
-        for (var i = 1; i < max + 1; i++){
-            columns.push({
-                field: i,
-                headerName: 'E' + i,
-            });
-        }
-        
-        rows.forEach((row, index) => row['id'] = index + 1);
-    
-        return {
-            rows: rows,
-            columns: columns,
-        };
-    }
-
-    RatingsMap() {
-        const data = this.process();
-        if (!data){
-            return <div></div>;
-        }
-        
+    RatingsMap() {        
         const { classes } = this.props;
+
         const { seasons } = this.state;
-        const rows = seasons.map( (season, id) => {
-            var row = { id };
+        if (!seasons.length) {
+            return;
+        }
+
+        const rows = seasons.map( (season, index) => {
+            var row = { id: index + 1 };
             season.Episodes.forEach(episode => {
                 row[episode.Episode] = episode;
             });
@@ -207,26 +139,33 @@ class CommentForm extends React.Component {
         );
         var columns = [{ 
             field: 'id',
-            headerName: 'Season',
+            headerName: 'S\\E',
         }]
         for (var i = 0; i < max; i++){
             columns.push({ field: i + 1, renderCell });
         }
         console.log(columns)
 
+        const getCellClassName = params => {
+            if (params.field !== 'id' && params.value) {
+                const int = parseInt(params.value.imdbRating);
+                return colors[10 - int];
+            }
+        }
+        const data = {
+            rows, columns, getCellClassName,
+            autoHeight: true,
+            className: classes.root,
+        }
         return (
-            <DataGrid 
-                rows={rows}
-                columns={columns}
-                // {...data}
-                autoHeight
-                className={classes.root}
-                getCellClassName={(params) => {
-                    if (params.field !== 'id'){
-                        return colors[10 - parseInt(params.value ? params.value.imdbRating : null)];
-                    }
-                }}
-            />
+            <div>
+                <Typography>
+                    *First row is the first season,
+                    second row is the second season, etc
+                </Typography>
+                <DataGrid {...data} />
+
+            </div>
         );
     }
 
@@ -242,9 +181,10 @@ class CommentForm extends React.Component {
                 <Toolbar />
 
                 <div className={classes.root}>
-
-                    {this.ImageGridList()}
-                    <br />
+                    <ImageGrid
+                        rows={this.state.rows}
+                        onClick={this.onClick}
+                    />
 
                     {this.RatingsMap()}
                 </div>

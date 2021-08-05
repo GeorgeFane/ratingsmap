@@ -81,6 +81,10 @@ export default function SearchAppBar(props) {
                         RatingsMap
                     </Typography>
 
+                    <Typography variant="body1" className={classes.title}>
+                        Generate heatmaps for TV show ratings
+                    </Typography>
+
                     <div className={classes.search}>
                         <div className={classes.searchIcon}>
                             <Search />
