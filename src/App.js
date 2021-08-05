@@ -1,75 +1,239 @@
-import * as React from 'react';
+import React from "react";
+import axios from "axios";
+
+import { TextField, Box, Grid, Toolbar } from '@material-ui/core';
 import { DataGrid } from '@material-ui/data-grid';
-import { Grid, Typography, Toolbar, Box, Paper } from '@material-ui/core';
+import { withStyles, createMuiTheme } from '@material-ui/core/styles';
 
-import axios from 'axios';
-import Map from './Map';
 import Header from './Header';
-import Card from './Card';
-import Accordion from './Accordion';
 
-const url = 'https://us-central1-georgefane.cloudfunctions.net/mdining'
+const { apikey } = require('./env.json');
 
-const width = 122;
-const columns = [
-    { field: 'Hall', width },
-    { field: 'Meal', width },
-    { field: 'Open', width },
-    { field: 'Close', width },
-    { field: 'isOpen', type: 'boolean', width },
-];
+var colors = 'darkGreen green goldenRod darkGoldenRod indianRed fireBrick'.split(' ');
+const useStyles = theme => {
+    var root = { padding: theme.spacing(3) };
+    colors.forEach(color => {
+        root['& .' + color] = { backgroundColor: color };
+    })
+    return { root: root };
+};
 
-class App extends React.Component {
-    constructor (props) {
-        super(props);
-        this.state = {
-            rows: [],
-            row: {},
-            loading: true,
-            Courses: '',
-        };
-    }
+// api functions
+const url = 'https://www.omdbapi.com/';
 
-    async componentDidMount() {
-        const resp = await axios.get(url);
-        const rows = resp.data.data.map( (row, id) => ({ id, ...row }) );
-        const loading = false;
-        this.setState({ rows, loading });
-    }
-
-    render () {
-        const { rows, row, loading, Courses } = this.state;
-        const data = {
-            rows, columns, loading, autoHeight: true,
-            onRowClick: data => {
-                const { row } = data;
-                this.setState({ row });
-            }
-        };
-
-        const lat = 42.28156557881266;
-        const lng = -83.72879591738906;
-        const center = { lat, lng };
-        const zoom = 12;
-        const mapProps = { center, zoom, rows };
-
-        return <div>
-            <Header />
-            <Toolbar />
-            <div>
-                <Grid container spacing={1}>
-                    <Grid item xs>
-                        <DataGrid {...data} />;
-                        <Accordion children={<Map {...mapProps} />} />
-                    </Grid>
-                    
-                    <Grid item xs>
-                        <Card row={row} />
-                    </Grid>
-                </Grid>
-            </div>
-        </div>
-    }
+function search(s) {
+    const params = { apikey, s };
+    return axios.get(url, { params })
+        .then(x => x.data.Search || []);
 }
 
-export default App;
+function getShow(i) {
+    const params = { apikey, i };
+    return axios.get(url, { params })
+        .then(x => x.data || []);
+}
+
+function getSeason(i, Season) {
+    const params = { apikey, i, Season };
+    return axios.get(url, { params });
+}
+
+function getAll(imdbID, totalSeasons) {
+    var requests = [];
+    for (var i = 0; i < totalSeasons; i++){
+        requests.push(
+            getSeason(imdbID, i + 1)
+        );
+    }
+    return axios.all(requests)
+        .then(axios.spread( (...responses) => (
+            responses.map(response => response.data) 
+        )));
+}
+
+class CommentForm extends React.Component {
+    constructor(props) {
+        super(props);
+
+        this.state = {
+            text: '',
+            rows: [],
+            show: {},
+            seasons: [],
+        }
+
+        this.onChange = this.onChange.bind(this);
+    }
+
+    setText = text => this.setState({ text });
+
+    // components
+
+    Form() {
+        return (
+            <form onSubmit={this.handleSubmit.bind(this)}>
+                <TextField 
+                    label='Search Show'
+                    variant='filled'
+                    required
+                    inputRef={(textarea) => this.body = textarea}
+                />
+            </form>
+        );
+    }
+
+    ImageGridList() {
+        if (this.state.rows.length) {
+            return (
+                <Grid container justify='left' spacing={2}>
+                    {this.state.rows
+                        .filter(tile => tile.Poster !== 'N/A')
+                        .map((tile) => (
+                            <Grid item onClick={() => this.handleSelect(tile.imdbID)}>
+                                <img src={tile.Poster} alt={tile.Title} width={144} />
+                            </Grid>
+                        )
+                    )}
+                </Grid>
+            );
+        }
+        
+        <Box component="div" display="inline">inline</Box>
+        return this.state.rows
+            .map((tile) => (
+                <Box component="div" display="inline">
+                    <img src={tile.Poster} alt={tile.Title} width={99} />
+                </Box>
+            ));
+    }
+    
+    process() {
+        var seasons = this.state.seasons;
+        if (!seasons.length){
+            return false;
+        }
+    
+        var rows = []
+        var numbers = [];
+        seasons.forEach(season => {
+            var row = {};
+            const episodes = season.Episodes || [];
+            episodes.forEach(episode => {
+                row[episode.Episode] = episode.imdbRating
+            });
+            rows.push(row);
+    
+            numbers.push(
+                Math.max( ...Object.keys(row).map(Number) )
+            );
+        })
+        
+        var max = Math.max( ...numbers );
+        var columns = [{ 
+            field: 'id',
+            headerName: 'Season',
+        }]
+        for (var i = 1; i < max + 1; i++){
+            columns.push({
+                field: i,
+                headerName: 'E' + i,
+            });
+        }
+        
+        rows.forEach((row, index) => row['id'] = index + 1);
+    
+        return {
+            rows: rows,
+            columns: columns,
+        };
+    }
+
+    RatingsMap() {
+        const data = this.process();
+        if (!data){
+            return <div></div>;
+        }
+        
+        const { classes } = this.props;
+        return (
+            <DataGrid 
+                {...data}
+                autoHeight
+                className={classes.root}
+                getCellClassName={(params) => {
+                    if (params.field === 'id' || !params.value || isNaN(params.value)) {
+                        return '';
+                    }
+                    for (const [index, color] of colors.entries()) {
+                        if (Number(params.value) >= (9 - index)) {
+                            return color;
+                        }
+                    }
+                    return colors[colors.length - 1];
+                }}
+            />
+        );
+    }
+
+    render() {
+        const { classes } = this.props;
+        return (
+            <div>
+                <Header
+                    text={this.state.text}
+                    setText={this.setText}
+                    handleSubmit={this.handleSubmit}
+                />
+                <Toolbar />
+
+                <div className={classes.root}>
+
+                    {this.Form()}
+                    <br />
+
+                    {this.ImageGridList()}
+                    <br />
+
+                    {this.RatingsMap()}
+                </div>
+            </div>
+            
+        );
+    }
+    
+    // hooks
+
+    handleSubmit(event) { 
+        event.preventDefault();     // prevents page from reloading on submit
+        search(this.state.text)
+            .then(x => {
+                this.setState({ rows: x });
+            });
+    }
+
+    onChange(event) { 
+        event.preventDefault();     // prevents page from reloading on submit
+        console.log(event.target.value);
+        search(event.target.value)
+            .then(x => {
+                this.setState({ rows: x });
+            });
+    }
+    
+    handleSelect(imdbID) {
+        getShow(imdbID)
+            .then(x => {
+                this.setState({ show: x });
+
+                getAll(
+                    this.state.show.imdbID,
+                    Number(this.state.show.totalSeasons),
+                )
+                    .then(x => {
+                        this.setState({ seasons: x });
+                    });
+            });        
+    }
+} // end CommentForm component
+
+export default withStyles(useStyles)(CommentForm);
