@@ -86,11 +86,11 @@ export default function SearchAppBar(props) {
                             <Search />
                         </div>
 
-                        <form onSubmit={props.handleSubmit}>
+                        <form onSubmit={props.onSubmit}>
                             <InputBase
                                 value={props.text}
-                                onChange={(event, text) => props.setText(text)}
-                                placeholder="Search…"
+                                onChange={props.onChange}
+                                placeholder="Search Show"
                                 classes={{
                                     root: classes.inputRoot,
                                     input: classes.inputInput,

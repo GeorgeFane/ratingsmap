@@ -2,7 +2,7 @@
   "name": "mdining",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://georgefane.github.io/mdining/",
+  "homepage": "https://georgefane.github.io/ratingsmap/",
   "dependencies": {
     "@material-ui/core": "latest",
     "@material-ui/data-grid": "^4.0.0-alpha.32",
