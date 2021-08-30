@@ -6,7 +6,7 @@ import { DataGrid } from '@material-ui/data-grid';
 import { withStyles, createMuiTheme } from '@material-ui/core/styles';
 
 import Header from './Header';
-import ImageGrid from './ImageGrid';
+import MediaCard from './MediaCard';
 
 const { apikey } = require('./env.json');
 
@@ -23,7 +23,7 @@ const useStyles = theme => {
 const url = 'https://www.omdbapi.com/';
 
 function search(s) {
-    const params = { apikey, s };
+    const params = { apikey, s, type: 'series' };
     return axios.get(url, { params })
         .then(x => x.data.Search || []);
 }
@@ -171,6 +171,9 @@ class CommentForm extends React.Component {
 
     render() {
         const { classes } = this.props;
+        const { rows } = this.state;
+        console.log(rows)
+
         return (
             <div>
                 <Header
@@ -181,10 +184,18 @@ class CommentForm extends React.Component {
                 <Toolbar />
 
                 <div className={classes.root}>
-                    <ImageGrid
-                        rows={this.state.rows}
-                        onClick={this.onClick}
-                    />
+                    <Grid container justify='left' spacing={2}>
+                        {rows
+                            .filter(tile => tile.Poster !== 'N/A')
+                            .map(tile => (
+                                <Grid item
+                                    onClick={() => this.onClick(tile.imdbID)}
+                                >
+                                    <MediaCard tile={tile} />
+                                </Grid>
+                            ))
+                        }
+                    </Grid>
 
                     {this.RatingsMap()}
                 </div>
